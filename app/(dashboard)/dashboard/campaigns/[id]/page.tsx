@@ -1,0 +1,194 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { DashboardHeader } from '@/components/dashboard/header'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
+import { EmailTemplateDesigner } from '@/components/email/designer'
+import { AlertCircle, Save, Clock } from 'lucide-react'
+import Link from 'next/link'
+
+interface Campaign {
+  id: string
+  name: string
+  subject_line?: string
+  from_email?: string
+  from_name?: string
+  status: string
+  scheduled_at?: string
+}
+
+export default function CampaignDetailPage({
+  params,
+}: {
+  params: { id: string }
+}) {
+  const [campaign, setCampaign] = useState<Campaign | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [htmlContent, setHtmlContent] = useState('')
+  const supabase = createClient()
+
+  useEffect(() => {
+    const fetchCampaign = async () => {
+      try {
+        const { data } = await supabase
+          .from('campaigns')
+          .select('*')
+          .eq('id', params.id)
+          .single()
+
+        if (data) {
+          setCampaign(data)
+        }
+      } catch (error) {
+        console.error('Error fetching campaign:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchCampaign()
+  }, [supabase, params.id])
+
+  const handleSave = async () => {
+    if (!campaign) return
+
+    setSaving(true)
+    try {
+      await supabase
+        .from('email_templates')
+        .upsert({
+          campaign_id: campaign.id,
+          user_id: campaign.id,
+          name: `${campaign.name} - Template`,
+          html_content: htmlContent,
+          subject_line: campaign.subject_line,
+        })
+
+      // Show success feedback
+      setTimeout(() => {
+        setSaving(false)
+      }, 500)
+    } catch (error) {
+      console.error('Error saving template:', error)
+      setSaving(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="p-8 lg:ml-64 flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
+      </div>
+    )
+  }
+
+  if (!campaign) {
+    return (
+      <div className="p-8 lg:ml-64">
+        <div className="text-center py-12">
+          <p className="text-muted-foreground mb-4">Campaign not found</p>
+          <Link href="/dashboard/campaigns">
+            <Button>Back to Campaigns</Button>
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="p-8 lg:ml-64">
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <DashboardHeader
+            title={campaign.name}
+            description={`Campaign · ${campaign.status.toUpperCase()}`}
+          />
+        </div>
+        <div className="flex gap-2">
+          <Badge>{campaign.status}</Badge>
+        </div>
+      </div>
+
+      {/* Campaign Settings Bar */}
+      <div className="bg-card border border-border rounded-lg p-6 mb-6 space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">
+              Subject Line
+            </label>
+            <Input
+              value={campaign.subject_line || ''}
+              placeholder="Email subject line"
+              disabled
+              className="text-muted-foreground"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">
+              From Name
+            </label>
+            <Input
+              value={campaign.from_name || ''}
+              placeholder="Sender name"
+              disabled
+              className="text-muted-foreground"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">
+              From Email
+            </label>
+            <Input
+              value={campaign.from_email || ''}
+              placeholder="noreply@yourdomain.com"
+              disabled
+              className="text-muted-foreground"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">
+              Scheduled For
+            </label>
+            <Input
+              type="datetime-local"
+              value={campaign.scheduled_at || ''}
+              disabled
+              className="text-muted-foreground"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Email Template Designer */}
+      <div className="bg-card border border-border rounded-lg p-6 mb-6">
+        <h2 className="text-lg font-bold text-foreground mb-4">Email Content</h2>
+        <EmailTemplateDesigner
+          value={htmlContent}
+          onChange={setHtmlContent}
+        />
+      </div>
+
+      {/* Actions */}
+      <div className="flex gap-3">
+        <Button
+          onClick={handleSave}
+          disabled={saving}
+        >
+          <Save className="w-4 h-4 mr-2" />
+          {saving ? 'Saving...' : 'Save Template'}
+        </Button>
+        <Button variant="outline">
+          <Clock className="w-4 h-4 mr-2" />
+          Schedule Send
+        </Button>
+        <Link href="/dashboard/campaigns" className="ml-auto">
+          <Button variant="outline">Close</Button>
+        </Link>
+      </div>
+    </div>
+  )
+}
