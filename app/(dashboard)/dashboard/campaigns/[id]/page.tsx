@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { EmailTemplateDesigner } from '@/components/email/designer'
-import { AlertCircle, Save, Clock } from 'lucide-react'
+import { AlertCircle, Save, Clock, Send } from 'lucide-react'
 import Link from 'next/link'
 
 interface Campaign {
@@ -28,6 +28,8 @@ export default function CampaignDetailPage({
   const [campaign, setCampaign] = useState<Campaign | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [sendStatus, setSendStatus] = useState<string>('')
   const [htmlContent, setHtmlContent] = useState('')
   const supabase = createClient()
 
@@ -76,6 +78,67 @@ export default function CampaignDetailPage({
       console.error('Error saving template:', error)
       setSaving(false)
     }
+  }
+
+  const handleSendCampaign = async () => {
+    if (!campaign) return
+
+    setSending(true)
+    setSendStatus('Initializing campaign send...')
+
+    try {
+      const response = await fetch('/api/campaigns/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          campaign_id: campaign.id,
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.detail || 'Failed to send campaign')
+      }
+
+      const data = await response.json()
+      setSendStatus(`✓ Campaign queued! Sending ${data.total_recipients} emails in parallel batches`)
+      
+      // Poll for status updates
+      pollCampaignStatus(campaign.id)
+      
+      setTimeout(() => setSending(false), 2000)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error'
+      setSendStatus(`✗ Error: ${message}`)
+      setSending(false)
+    }
+  }
+
+  const pollCampaignStatus = async (campaignId: string) => {
+    const maxAttempts = 30 // Poll for 5 minutes (10s intervals)
+    let attempts = 0
+
+    const poll = setInterval(async () => {
+      attempts++
+
+      try {
+        const response = await fetch(`/api/campaigns/${campaignId}/status`)
+        if (response.ok) {
+          const data = await response.json()
+          setSendStatus(
+            `Status: ${data.statistics.sent} sent, ${data.statistics.delivered} delivered, ${data.statistics.bounced} bounced`
+          )
+        }
+      } catch (error) {
+        console.error('Error polling status:', error)
+      }
+
+      if (attempts >= maxAttempts) {
+        clearInterval(poll)
+      }
+    }, 10000) // Poll every 10 seconds
   }
 
   if (loading) {
@@ -172,6 +235,13 @@ export default function CampaignDetailPage({
         />
       </div>
 
+      {/* Send Status */}
+      {sendStatus && (
+        <div className="bg-card border border-border rounded-lg p-4 mb-6">
+          <p className="text-sm font-medium text-foreground">{sendStatus}</p>
+        </div>
+      )}
+
       {/* Actions */}
       <div className="flex gap-3">
         <Button
@@ -180,6 +250,14 @@ export default function CampaignDetailPage({
         >
           <Save className="w-4 h-4 mr-2" />
           {saving ? 'Saving...' : 'Save Template'}
+        </Button>
+        <Button
+          onClick={handleSendCampaign}
+          disabled={sending || campaign.status === 'sent'}
+          variant={campaign.status === 'draft' ? 'default' : 'outline'}
+        >
+          <Send className="w-4 h-4 mr-2" />
+          {sending ? 'Sending...' : 'Send Campaign Now'}
         </Button>
         <Button variant="outline">
           <Clock className="w-4 h-4 mr-2" />
