@@ -37,5 +37,18 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "ignore"  # Ignore extra fields from .env
 
-settings = Settings()
+try:
+    settings = Settings()
+except Exception as e:
+    print(f"Error loading settings: {e}")
+    # Provide defaults if .env file is missing
+    settings = Settings(
+        AWS_ACCESS_KEY_ID="",
+        AWS_SECRET_ACCESS_KEY="",
+        AWS_REGION="ap-south-1",
+        AWS_SES_SENDER_EMAIL="",
+        SUPABASE_URL="",
+        SUPABASE_SERVICE_ROLE_KEY="",
+    )
