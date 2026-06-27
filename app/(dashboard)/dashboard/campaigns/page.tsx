@@ -63,7 +63,7 @@ export default function CampaignsPage() {
   const handleSendCampaign = async (campaignId: string) => {
     setSendingId(campaignId)
     try {
-      const response = await fetch('/api/campaigns/send', {
+      const response = await fetch('/api/campaigns/send-simple', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -73,13 +73,13 @@ export default function CampaignsPage() {
         }),
       })
 
+      const data = await response.json()
+
       if (!response.ok) {
-        const error = await response.json()
-        alert(`Error: ${error.detail || 'Failed to send campaign'}`)
+        alert(`Error: ${data.detail || 'Failed to send campaign'}`)
         return
       }
 
-      const data = await response.json()
       alert(`Campaign queued! Sending ${data.total_recipients} emails in parallel.`)
       
       // Refresh campaigns

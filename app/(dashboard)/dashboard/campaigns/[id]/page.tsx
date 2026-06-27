@@ -23,7 +23,7 @@ interface Campaign {
 export default function CampaignDetailPage({
   params,
 }: {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }) {
   const [campaign, setCampaign] = useState<Campaign | null>(null)
   const [loading, setLoading] = useState(true)
@@ -31,19 +31,25 @@ export default function CampaignDetailPage({
   const [sending, setSending] = useState(false)
   const [sendStatus, setSendStatus] = useState<string>('')
   const [htmlContent, setHtmlContent] = useState('')
+  const [campaignId, setCampaignId] = useState<string | null>(null)
   const supabase = createClient()
 
   useEffect(() => {
     const fetchCampaign = async () => {
       try {
+        const resolvedParams = await params
+        setCampaignId(resolvedParams.id)
+        
         const { data } = await supabase
           .from('campaigns')
           .select('*')
-          .eq('id', params.id)
+          .eq('id', resolvedParams.id)
           .single()
 
         if (data) {
           setCampaign(data)
+        } else {
+          console.error('Campaign not found')
         }
       } catch (error) {
         console.error('Error fetching campaign:', error)
@@ -53,7 +59,7 @@ export default function CampaignDetailPage({
     }
 
     fetchCampaign()
-  }, [supabase, params.id])
+  }, [params, supabase])
 
   const handleSave = async () => {
     if (!campaign) return
@@ -87,7 +93,7 @@ export default function CampaignDetailPage({
     setSendStatus('Initializing campaign send...')
 
     try {
-      const response = await fetch('/api/campaigns/send', {
+      const response = await fetch('/api/campaigns/send-simple', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -97,12 +103,12 @@ export default function CampaignDetailPage({
         }),
       })
 
+      const data = await response.json()
+
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.detail || 'Failed to send campaign')
+        throw new Error(data.detail || 'Failed to send campaign')
       }
 
-      const data = await response.json()
       setSendStatus(`✓ Campaign queued! Sending ${data.total_recipients} emails in parallel batches`)
       
       // Poll for status updates
