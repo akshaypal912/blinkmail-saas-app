@@ -59,12 +59,21 @@ export async function POST(request: NextRequest) {
       .eq('campaign_id', campaign_id)
       .single()
 
+    // Validate from_email is set (must be set on campaign)
+    if (!campaign.from_email) {
+      console.error('[v0] Campaign missing from_email')
+      return NextResponse.json(
+        { detail: 'Campaign does not have a sender email configured. Please edit the campaign.' },
+        { status: 400 }
+      )
+    }
+
     // Prepare email data for backend
     const emailData = {
       campaign_id,
       campaign_name: campaign.name,
       subject_line: campaign.subject_line || template?.subject_line || 'No Subject',
-      from_email: campaign.from_email || 'hello@undefstudio.live',
+      from_email: campaign.from_email,
       from_name: campaign.from_name || 'BlinkMail',
       html_content: template?.html_content || '<p>No content</p>',
       recipients: contacts.map(c => ({

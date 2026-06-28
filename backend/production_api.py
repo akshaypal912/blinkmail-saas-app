@@ -39,10 +39,17 @@ app.add_middleware(
 AWS_REGION = os.getenv("AWS_REGION", "ap-south-1")
 AWS_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY_ID", "")
 AWS_SECRET_KEY = os.getenv("AWS_SECRET_ACCESS_KEY", "")
-AWS_SENDER = os.getenv("AWS_SES_SENDER_EMAIL", "hello@undefstudio.live")
+# Use SES_FROM_EMAIL environment variable (required - no default)
+AWS_SENDER = os.getenv("SES_FROM_EMAIL", "")
+AWS_SENDER_NAME = os.getenv("SES_FROM_NAME", "BlinkMail")
 
 logger.info(f"AWS Region: {AWS_REGION}")
-logger.info(f"AWS Sender: {AWS_SENDER}")
+logger.info(f"AWS Sender Email: {AWS_SENDER if AWS_SENDER else 'NOT SET (will use campaign from_email)'}")
+logger.info(f"AWS Sender Name: {AWS_SENDER_NAME}")
+
+# Warn if SES_FROM_EMAIL not set
+if not AWS_SENDER:
+    logger.warning("⚠️  SES_FROM_EMAIL environment variable not set. Will use campaign from_email instead.")
 
 # Initialize AWS SES
 try:
@@ -225,16 +232,18 @@ async def send_campaign(request: SendCampaignRequest):
     }
 
 @app.post("/api/send-email")
-async def send_single_email(email: str, subject: str, body: str):
+async def send_single_email(email: str, subject: str, body: str, from_email: str = ""):
     """Test endpoint to send a single email"""
     logger.info(f"Test send to: {email}")
+    
+    sender_email = from_email or AWS_SENDER or "noreply@undefstudio.live"
     
     result = await send_email_via_ses(
         to_email=email,
         subject=subject,
         html_body=body,
-        from_email=AWS_SENDER,
-        from_name="BlinkMail"
+        from_email=sender_email,
+        from_name=AWS_SENDER_NAME
     )
     
     if result["status"] == "failed":

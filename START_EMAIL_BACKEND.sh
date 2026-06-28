@@ -32,12 +32,15 @@ echo -e "${YELLOW}[3/4]${NC} Setting environment variables..."
 export AWS_REGION="ap-south-1"
 export AWS_ACCESS_KEY_ID="AKIAQQOY4S7ORU2ZMY42"
 export AWS_SECRET_ACCESS_KEY="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"
-export AWS_SES_SENDER_EMAIL="hello@undefstudio.live"
+# Use SES_FROM_EMAIL for default sender (any email from verified domain undefstudio.live)
+export SES_FROM_EMAIL="noreply@undefstudio.live"
+export SES_FROM_NAME="BlinkMail"
 
 echo "  ✓ AWS_REGION=$AWS_REGION"
 echo "  ✓ AWS_ACCESS_KEY_ID=***"
 echo "  ✓ AWS_SECRET_ACCESS_KEY=***"
-echo "  ✓ AWS_SES_SENDER_EMAIL=$AWS_SES_SENDER_EMAIL"
+echo "  ✓ SES_FROM_EMAIL=$SES_FROM_EMAIL"
+echo "  ✓ SES_FROM_NAME=$SES_FROM_NAME"
 
 # Start backend
 echo -e "${YELLOW}[4/4]${NC} Starting FastAPI backend..."
