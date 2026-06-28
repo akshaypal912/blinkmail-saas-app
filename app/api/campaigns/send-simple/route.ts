@@ -59,23 +59,81 @@ export async function POST(request: NextRequest) {
       .eq('campaign_id', campaign_id)
       .single()
 
-    // Update campaign status to 'sending'
-    await supabase
-      .from('campaigns')
-      .update({ 
-        status: 'sending',
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', campaign_id)
-
-    // For testing: just return success without calling backend
-    // In production, this would queue to Celery/FastAPI
-    return NextResponse.json({
-      status: 'sending',
+    // Prepare email data for backend
+    const emailData = {
       campaign_id,
-      total_recipients: contacts.length,
-      message: `Campaign queued! Ready to send to ${contacts.length} contacts`,
-    })
+      campaign_name: campaign.name,
+      subject_line: campaign.subject_line || template?.subject_line || 'No Subject',
+      from_email: campaign.from_email || 'hello@undefstudio.live',
+      from_name: campaign.from_name || 'BlinkMail',
+      html_content: template?.html_content || '<p>No content</p>',
+      recipients: contacts.map(c => ({
+        id: c.id,
+        email: c.email,
+        first_name: c.first_name || '',
+        last_name: c.last_name || ''
+      }))
+    }
+
+    // Call the REAL backend API
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
+    console.log('[v0] Calling backend at:', backendUrl)
+    console.log('[v0] Sending email data:', { campaign_id, recipients: contacts.length })
+
+    let backendResponse
+    try {
+      backendResponse = await fetch(`${backendUrl}/api/send-campaign`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(emailData),
+        timeout: 30000, // 30 second timeout
+      })
+
+      if (!backendResponse.ok) {
+        const backendError = await backendResponse.text()
+        console.error('[v0] Backend error:', backendError)
+        
+        return NextResponse.json(
+          { 
+            detail: `Backend error: ${backendError}`,
+            status: 'failed'
+          },
+          { status: backendResponse.status }
+        )
+      }
+
+      const backendResult = await backendResponse.json()
+      console.log('[v0] Backend response:', backendResult)
+
+      // Only update status if backend succeeded
+      await supabase
+        .from('campaigns')
+        .update({ 
+          status: 'sending',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', campaign_id)
+
+      return NextResponse.json({
+        status: 'sending',
+        campaign_id,
+        total_recipients: contacts.length,
+        backend_response: backendResult,
+        message: `Campaign queued! Sending ${contacts.length} emails...`,
+      })
+
+    } catch (backendError) {
+      const errorMsg = backendError instanceof Error ? backendError.message : String(backendError)
+      console.error('[v0] Backend connection error:', errorMsg)
+      
+      return NextResponse.json(
+        { 
+          detail: `Failed to connect to backend: ${errorMsg}. Make sure backend is running at ${backendUrl}`,
+          status: 'failed'
+        },
+        { status: 503 }
+      )
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
     console.error('[v0] Send error:', message)
