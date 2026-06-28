@@ -140,13 +140,14 @@ export default function NewCampaignPage() {
               <Input
                 id="fromEmail"
                 type="email"
-                placeholder="noreply@yourdomain.com"
+                placeholder="support@undefstudio.live"
                 value={fromEmail}
                 onChange={(e) => setFromEmail(e.target.value)}
                 disabled={loading}
+                required
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Must be from a verified domain
+                Must be from a verified domain or email in AWS SES (e.g., any@undefstudio.live)
               </p>
             </div>
 

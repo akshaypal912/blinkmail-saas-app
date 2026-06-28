@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
-import { Trash2, Edit2, Search, Mail } from 'lucide-react'
+import { Trash2, Edit2, Search, Mail, Send } from 'lucide-react'
 
 interface Campaign {
   id: string
@@ -21,6 +21,7 @@ export default function CampaignsPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [sendingId, setSendingId] = useState<string | null>(null)
   const supabase = createClient()
 
   useEffect(() => {
@@ -56,6 +57,41 @@ export default function CampaignsPage() {
       setCampaigns(campaigns.filter((c) => c.id !== id))
     } catch (error) {
       console.error('Error deleting campaign:', error)
+    }
+  }
+
+  const handleSendCampaign = async (campaignId: string) => {
+    setSendingId(campaignId)
+    try {
+      const response = await fetch('/api/campaigns/send-simple', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          campaign_id: campaignId,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        alert(`Error: ${data.detail || 'Failed to send campaign'}`)
+        return
+      }
+
+      alert(`Campaign queued! Sending ${data.total_recipients} emails in parallel.`)
+      
+      // Refresh campaigns
+      const { data: updated } = await supabase
+        .from('campaigns')
+        .select('*')
+        .order('created_at', { ascending: false })
+      setCampaigns(updated || [])
+    } catch (error) {
+      alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setSendingId(null)
     }
   }
 
@@ -142,6 +178,18 @@ export default function CampaignsPage() {
                       {new Date(campaign.created_at).toLocaleDateString()}
                     </td>
                     <td className="px-6 py-4 text-right space-x-2">
+                      <button
+                        onClick={() => handleSendCampaign(campaign.id)}
+                        disabled={sendingId === campaign.id || campaign.status === 'sent'}
+                        className="text-green-600 hover:text-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Send campaign"
+                      >
+                        {sendingId === campaign.id ? (
+                          <div className="w-4 h-4 animate-spin rounded-full border-2 border-green-600 border-t-transparent" />
+                        ) : (
+                          <Send className="w-4 h-4" />
+                        )}
+                      </button>
                       <Link href={`/dashboard/campaigns/${campaign.id}`} className="inline">
                         <button className="text-primary hover:text-primary/80 transition-colors">
                           <Edit2 className="w-4 h-4" />
