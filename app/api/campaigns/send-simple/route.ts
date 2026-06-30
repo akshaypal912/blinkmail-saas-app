@@ -84,19 +84,42 @@ export async function POST(request: NextRequest) {
       }))
     }
 
-    // Call the REAL backend API
+    // Call backend API with retry logic
     const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
     console.log('[v0] Calling backend at:', backendUrl)
     console.log('[v0] Sending email data:', { campaign_id, recipients: contacts.length })
 
+    // Retry configuration
+    const MAX_RETRIES = 3
+    const RETRY_DELAY_MS = 2000
+    
+    async function callBackendWithRetry(attempt = 1): Promise<Response> {
+      try {
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), 30000)
+        
+        const response = await fetch(`${backendUrl}/api/send-campaign`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(emailData),
+          signal: controller.signal,
+        })
+        
+        clearTimeout(timeout)
+        return response
+      } catch (error) {
+        if (attempt < MAX_RETRIES) {
+          console.log(`[v0] Attempt ${attempt} failed, retrying in ${RETRY_DELAY_MS}ms...`)
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS))
+          return callBackendWithRetry(attempt + 1)
+        }
+        throw error
+      }
+    }
+
     let backendResponse
     try {
-      backendResponse = await fetch(`${backendUrl}/api/send-campaign`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(emailData),
-        timeout: 30000, // 30 second timeout
-      })
+      backendResponse = await callBackendWithRetry()
 
       if (!backendResponse.ok) {
         const backendError = await backendResponse.text()
@@ -139,11 +162,11 @@ export async function POST(request: NextRequest) {
 
     } catch (backendError) {
       const errorMsg = backendError instanceof Error ? backendError.message : String(backendError)
-      console.error('[v0] Backend connection error:', errorMsg)
+      console.error('[v0] Backend connection error after 3 retries:', errorMsg)
       
       return NextResponse.json(
         { 
-          detail: `Failed to connect to backend: ${errorMsg}. Make sure backend is running at ${backendUrl}`,
+          detail: `Failed to connect to backend after ${MAX_RETRIES} attempts: ${errorMsg}. Backend at ${backendUrl} is not responding. Please check: 1) Is backend running? 2) Is port 8000 open? 3) Check logs: tail -f /tmp/blinkmail_backend.log`,
           status: 'failed'
         },
         { status: 503 }
