@@ -87,7 +87,7 @@ export default function CampaignDetailPage({
   }
 
   const handleSendCampaign = async () => {
-    if (!campaign) return
+    if (!campaign || !campaignId) return
 
     setSending(true)
     setSendStatus('Initializing campaign send...')
@@ -112,24 +112,24 @@ export default function CampaignDetailPage({
       setSendStatus(`✓ Campaign sent! ${data.sent} emails delivered successfully`)
       
       // Immediately update campaign status in local state
-      setCampaign(prev => prev ? { ...prev, status: data.status || 'sent' } : null)
+      const newStatus = data.status || 'sent'
+      setCampaign(prev => prev ? { ...prev, status: newStatus } : null)
+      
+      // Give time for database to update, then refetch
+      await new Promise(resolve => setTimeout(resolve, 1000))
       
       // Refetch campaign to get updated status from database
-      setTimeout(async () => {
-        try {
-          const { data: updatedCampaign } = await supabase
-            .from('campaigns')
-            .select('*')
-            .eq('id', campaign.id)
-            .single()
-          if (updatedCampaign) {
-            setCampaign(updatedCampaign)
-          }
-        } catch (error) {
-          console.error('Error refetching campaign:', error)
-        }
-        setSending(false)
-      }, 500)
+      const { data: updatedCampaign } = await supabase
+        .from('campaigns')
+        .select('*')
+        .eq('id', campaignId)
+        .single()
+      
+      if (updatedCampaign) {
+        setCampaign(updatedCampaign)
+      }
+      
+      setSending(false)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error'
       setSendStatus(`✗ Error: ${message}`)
