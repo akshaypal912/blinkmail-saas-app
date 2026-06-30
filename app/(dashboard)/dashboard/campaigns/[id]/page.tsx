@@ -174,11 +174,23 @@ export default function CampaignDetailPage({
         <div>
           <DashboardHeader
             title={campaign.name}
-            description={`Campaign · ${campaign.status.toUpperCase()}`}
+            description={`Campaign · ${campaign.status === 'draft' ? 'DRAFT' : campaign.status === 'sending' ? 'SENDING' : campaign.status === 'sent' ? 'SENT' : campaign.status.toUpperCase()}`}
           />
         </div>
         <div className="flex gap-2">
-          <Badge>{campaign.status}</Badge>
+          <Badge
+            variant={
+              campaign.status === 'sent' 
+                ? 'default' 
+                : campaign.status === 'draft'
+                ? 'secondary'
+                : campaign.status === 'failed'
+                ? 'destructive'
+                : 'secondary'
+            }
+          >
+            {campaign.status === 'draft' ? 'Draft' : campaign.status === 'sending' ? 'Sending...' : campaign.status === 'sent' ? 'Sent' : campaign.status === 'failed' ? 'Failed' : campaign.status}
+          </Badge>
         </div>
       </div>
 

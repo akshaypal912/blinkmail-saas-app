@@ -173,10 +173,16 @@ export default function CampaignsPage() {
                       <div className="flex items-center gap-2">
                         <Badge
                           variant={
-                            campaign.status === 'sent' ? 'default' : 'secondary'
+                            campaign.status === 'sent' 
+                              ? 'default' 
+                              : campaign.status === 'draft'
+                              ? 'secondary'
+                              : campaign.status === 'failed'
+                              ? 'destructive'
+                              : 'secondary'
                           }
                         >
-                          {campaign.status}
+                          {campaign.status === 'draft' ? 'Draft' : campaign.status === 'sending' ? 'Sending...' : campaign.status === 'sent' ? 'Sent' : campaign.status === 'failed' ? 'Failed' : campaign.status}
                         </Badge>
                         {campaign.status === 'sent' && (campaign as any).sent_count > 0 && (
                           <span className="text-xs text-muted-foreground">
@@ -191,9 +197,9 @@ export default function CampaignsPage() {
                     <td className="px-6 py-4 text-right space-x-2">
                       <button
                         onClick={() => handleSendCampaign(campaign.id)}
-                        disabled={sendingId === campaign.id || campaign.status === 'sent'}
+                        disabled={sendingId === campaign.id || campaign.status === 'sent' || campaign.status === 'sending' || campaign.status === 'draft'}
                         className="text-green-600 hover:text-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        title="Send campaign"
+                        title={campaign.status === 'draft' ? 'Edit campaign first before sending' : campaign.status === 'sent' ? 'Campaign already sent' : campaign.status === 'sending' ? 'Campaign is currently sending' : 'Send campaign'}
                       >
                         {sendingId === campaign.id ? (
                           <div className="w-4 h-4 animate-spin rounded-full border-2 border-green-600 border-t-transparent" />
