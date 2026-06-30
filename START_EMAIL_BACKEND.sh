@@ -22,25 +22,25 @@ echo -e "${YELLOW}[1/4]${NC} Cleaning up old processes..."
 pkill -f "python3.*production_api" || true
 sleep 1
 
-# Install dependencies
+# Install dependencies (Brevo instead of AWS SES)
 echo -e "${YELLOW}[2/4]${NC} Installing dependencies..."
 cd "$BACKEND_DIR"
-python3 -m pip install --break-system-packages fastapi uvicorn boto3 httpx 2>&1 | grep -E "Successfully|Collecting" | tail -3
+python3 -m pip install --break-system-packages fastapi uvicorn httpx 2>&1 | grep -E "Successfully|Collecting" | tail -3
 
-# Set environment variables
+# Set environment variables (Brevo)
 echo -e "${YELLOW}[3/4]${NC} Setting environment variables..."
-export AWS_REGION="ap-south-1"
-export AWS_ACCESS_KEY_ID="AKIAQQOY4S7ORU2ZMY42"
-export AWS_SECRET_ACCESS_KEY="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"
-# Use SES_FROM_EMAIL for default sender (any email from verified domain undefstudio.live)
-export SES_FROM_EMAIL="noreply@undefstudio.live"
-export SES_FROM_NAME="BlinkMail"
+export EMAIL_PROVIDER="brevo"
+export BREVO_API_KEY="your_brevo_api_key_here"
+export BREVO_FROM_EMAIL="noreply@undefstudio.live"
+export BREVO_FROM_NAME="BlinkMail"
 
-echo "  ✓ AWS_REGION=$AWS_REGION"
-echo "  ✓ AWS_ACCESS_KEY_ID=***"
-echo "  ✓ AWS_SECRET_ACCESS_KEY=***"
-echo "  ✓ SES_FROM_EMAIL=$SES_FROM_EMAIL"
-echo "  ✓ SES_FROM_NAME=$SES_FROM_NAME"
+echo "  ✓ EMAIL_PROVIDER=$EMAIL_PROVIDER"
+echo "  ✓ BREVO_API_KEY=***"
+echo "  ✓ BREVO_FROM_EMAIL=$BREVO_FROM_EMAIL"
+echo "  ✓ BREVO_FROM_NAME=$BREVO_FROM_NAME"
+echo ""
+echo "  ⚠️  NOTE: Set your actual BREVO_API_KEY before running!"
+echo "  Get it from: https://app.brevo.com/settings/account/api"
 
 # Start backend
 echo -e "${YELLOW}[4/4]${NC} Starting FastAPI backend..."

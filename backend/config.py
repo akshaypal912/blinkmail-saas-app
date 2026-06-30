@@ -2,11 +2,11 @@ from pydantic_settings import BaseSettings
 from typing import Optional
 
 class Settings(BaseSettings):
-    # AWS Configuration
-    AWS_ACCESS_KEY_ID: str
-    AWS_SECRET_ACCESS_KEY: str
-    AWS_REGION: str = "ap-south-1"
-    AWS_SES_SENDER_EMAIL: str
+    # Email Provider Configuration (Brevo)
+    EMAIL_PROVIDER: str = "brevo"
+    BREVO_API_KEY: str  # Required - Brevo transactional email API key
+    BREVO_FROM_EMAIL: str = "noreply@undefstudio.live"
+    BREVO_FROM_NAME: str = "BlinkMail"
     
     # Supabase Configuration
     SUPABASE_URL: str
@@ -45,10 +45,9 @@ except Exception as e:
     print(f"Error loading settings: {e}")
     # Provide defaults if .env file is missing
     settings = Settings(
-        AWS_ACCESS_KEY_ID="",
-        AWS_SECRET_ACCESS_KEY="",
-        AWS_REGION="ap-south-1",
-        AWS_SES_SENDER_EMAIL="",
+        BREVO_API_KEY="",
+        BREVO_FROM_EMAIL="noreply@undefstudio.live",
+        BREVO_FROM_NAME="BlinkMail",
         SUPABASE_URL="",
         SUPABASE_SERVICE_ROLE_KEY="",
     )

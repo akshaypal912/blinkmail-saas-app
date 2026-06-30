@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """
-Production-Grade Email API with AWS SES
-Complete error handling, logging, and SES integration
+Production-Grade Email API with Brevo
+Complete error handling, logging, and Brevo Transactional Email integration
 """
 import os
-import boto3
 import logging
 import json
 from fastapi import FastAPI, HTTPException
@@ -13,6 +12,7 @@ from pydantic import BaseModel
 from typing import List, Dict, Optional
 from datetime import datetime
 import asyncio
+from email_provider import get_email_provider
 
 # Configure logging
 logging.basicConfig(
@@ -36,33 +36,28 @@ app.add_middleware(
 # CONFIG & SETUP
 # ==============================================================================
 
-AWS_REGION = os.getenv("AWS_REGION", "ap-south-1")
-AWS_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY_ID", "")
-AWS_SECRET_KEY = os.getenv("AWS_SECRET_ACCESS_KEY", "")
-# Use SES_FROM_EMAIL environment variable (required - no default)
-AWS_SENDER = os.getenv("SES_FROM_EMAIL", "")
-AWS_SENDER_NAME = os.getenv("SES_FROM_NAME", "BlinkMail")
+EMAIL_PROVIDER_NAME = os.getenv("EMAIL_PROVIDER", "brevo")
+BREVO_API_KEY = os.getenv("BREVO_API_KEY", "")
+BREVO_FROM_EMAIL = os.getenv("BREVO_FROM_EMAIL", "noreply@undefstudio.live")
+BREVO_FROM_NAME = os.getenv("BREVO_FROM_NAME", "BlinkMail")
 
-logger.info(f"AWS Region: {AWS_REGION}")
-logger.info(f"AWS Sender Email: {AWS_SENDER if AWS_SENDER else 'NOT SET (will use campaign from_email)'}")
-logger.info(f"AWS Sender Name: {AWS_SENDER_NAME}")
+logger.info(f"Email Provider: {EMAIL_PROVIDER_NAME}")
+logger.info(f"From Email: {BREVO_FROM_EMAIL}")
+logger.info(f"From Name: {BREVO_FROM_NAME}")
 
-# Warn if SES_FROM_EMAIL not set
-if not AWS_SENDER:
-    logger.warning("⚠️  SES_FROM_EMAIL environment variable not set. Will use campaign from_email instead.")
+# Warn if API key not set
+if not BREVO_API_KEY:
+    logger.warning("⚠️  BREVO_API_KEY environment variable not set. Email sending will fail.")
 
-# Initialize AWS SES
+# Initialize Email Provider
+email_provider = None
 try:
-    ses_client = boto3.client(
-        "ses",
-        region_name=AWS_REGION,
-        aws_access_key_id=AWS_ACCESS_KEY,
-        aws_secret_access_key=AWS_SECRET_KEY
-    )
-    logger.info("✓ AWS SES client initialized successfully")
+    email_provider = get_email_provider(provider_name=EMAIL_PROVIDER_NAME, api_key=BREVO_API_KEY)
+    health_check = email_provider.health_check()
+    logger.info(f"✓ Email provider initialized successfully: {health_check}")
 except Exception as e:
-    logger.error(f"✗ Failed to initialize AWS SES: {e}")
-    ses_client = None
+    logger.error(f"✗ Failed to initialize email provider: {e}")
+    email_provider = None
 
 # ==============================================================================
 # MODELS
@@ -93,14 +88,15 @@ async def health_check():
     return {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
-        "ses_client": "ready" if ses_client else "NOT READY"
+        "email_provider": EMAIL_PROVIDER_NAME,
+        "provider_status": "ready" if email_provider else "NOT READY"
     }
 
 # ==============================================================================
 # EMAIL SENDING
 # ==============================================================================
 
-async def send_email_via_ses(
+async def send_email_via_brevo(
     to_email: str,
     subject: str,
     html_body: str,
@@ -108,61 +104,52 @@ async def send_email_via_ses(
     from_name: str
 ) -> Dict:
     """
-    Send email via AWS SES
+    Send email via Brevo Transactional Email API
     Returns detailed response or error info
     """
-    if not ses_client:
+    if not email_provider:
         return {
             "status": "failed",
-            "error": "SES client not initialized",
+            "error": "Email provider not initialized",
             "email": to_email
         }
 
     try:
         logger.info(f"Sending email to: {to_email}")
         
-        response = ses_client.send_email(
-            Source=f"{from_name} <{from_email}>" if from_name else from_email,
-            Destination={"ToAddresses": [to_email]},
-            Message={
-                "Subject": {"Data": subject, "Charset": "UTF-8"},
-                "Body": {"Html": {"Data": html_body, "Charset": "UTF-8"}}
-            }
+        result = await email_provider.send_single_email(
+            to_email=to_email,
+            subject=subject,
+            html_content=html_body,
+            from_email=from_email,
+            from_name=from_name
         )
         
-        message_id = response.get("MessageId", "unknown")
-        logger.info(f"✓ Email sent successfully to {to_email} (MessageId: {message_id})")
+        if result["status"] == "sent":
+            logger.info(f"✓ Email sent successfully to {to_email} (MessageId: {result.get('message_id', 'unknown')})")
+        else:
+            logger.error(f"✗ Failed to send to {to_email}: {result.get('error')}")
         
-        return {
-            "status": "sent",
-            "email": to_email,
-            "message_id": message_id,
-            "timestamp": datetime.now().isoformat()
-        }
-    
-    except ses_client.exceptions.MessageRejected as e:
-        error_msg = f"Message rejected by SES: {str(e)}"
-        logger.error(f"✗ {error_msg}")
-        return {"status": "failed", "email": to_email, "error": error_msg}
+        return result
     
     except Exception as e:
         error_msg = str(e)
-        logger.error(f"✗ SES error for {to_email}: {error_msg}")
+        logger.error(f"✗ Brevo error for {to_email}: {error_msg}")
         
-        # Check for common SES errors
-        if "MessageRejected" in str(type(e)):
-            logger.error("→ Email address may not be verified in AWS SES")
-        elif "InvalidParameterValue" in str(type(e)):
-            logger.error("→ Invalid email format or SES configuration")
-        elif "Throttling" in error_msg:
-            logger.error("→ SES rate limit exceeded, retrying later")
+        # Check for common Brevo errors
+        if "authentication" in error_msg.lower() or "401" in error_msg:
+            logger.error("→ Invalid Brevo API key")
+        elif "invalid email" in error_msg.lower():
+            logger.error("→ Invalid email format")
+        elif "429" in error_msg or "rate limit" in error_msg.lower():
+            logger.error("→ Brevo rate limit exceeded, retrying later")
         
         return {"status": "failed", "email": to_email, "error": error_msg}
 
 @app.post("/api/send-campaign")
 async def send_campaign(request: SendCampaignRequest):
     """
-    Send campaign emails to all recipients
+    Send campaign emails to all recipients via Brevo
     Real implementation with detailed error reporting
     """
     logger.info(f"Received send request for campaign: {request.campaign_id}")
@@ -193,8 +180,8 @@ async def send_campaign(request: SendCampaignRequest):
                 recipient.email
             )
             
-            # Send email
-            result = await send_email_via_ses(
+            # Send email via Brevo
+            result = await send_email_via_brevo(
                 to_email=recipient.email,
                 subject=subject,
                 html_body=html_content,
@@ -232,18 +219,18 @@ async def send_campaign(request: SendCampaignRequest):
     }
 
 @app.post("/api/send-email")
-async def send_single_email(email: str, subject: str, body: str, from_email: str = ""):
-    """Test endpoint to send a single email"""
+async def send_single_email_endpoint(email: str, subject: str, body: str, from_email: str = ""):
+    """Test endpoint to send a single email via Brevo"""
     logger.info(f"Test send to: {email}")
     
-    sender_email = from_email or AWS_SENDER or "noreply@undefstudio.live"
+    sender_email = from_email or BREVO_FROM_EMAIL
     
-    result = await send_email_via_ses(
+    result = await send_email_via_brevo(
         to_email=email,
         subject=subject,
         html_body=body,
         from_email=sender_email,
-        from_name=AWS_SENDER_NAME
+        from_name=BREVO_FROM_NAME
     )
     
     if result["status"] == "failed":

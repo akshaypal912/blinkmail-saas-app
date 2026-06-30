@@ -1,22 +1,22 @@
-import boto3
 import logging
 from typing import List, Dict, Optional
 from datetime import datetime
 from config import settings
 from database import update_recipient_status, update_campaign_analytics, add_to_suppression_list
 from celery_app import send_email_batch_task
+from email_provider import get_email_provider
 import asyncio
 import re
 
 logger = logging.getLogger(__name__)
 
-# Initialize AWS SES client
-ses_client = boto3.client(
-    'ses',
-    region_name=settings.AWS_REGION,
-    aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-    aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY
-)
+# Initialize Email Provider (Brevo)
+try:
+    email_provider = get_email_provider(provider_name=settings.EMAIL_PROVIDER, api_key=settings.BREVO_API_KEY)
+    logger.info(f"✓ Email provider initialized: {settings.EMAIL_PROVIDER}")
+except Exception as e:
+    logger.error(f"✗ Failed to initialize email provider: {e}")
+    email_provider = None
 
 async def send_single_email(
     to_email: str,
@@ -27,27 +27,32 @@ async def send_single_email(
     reply_to: Optional[List[str]] = None
 ) -> Dict:
     """
-    Send a single email via AWS SES
+    Send a single email via Brevo Transactional Email API
     """
+    if not email_provider:
+        logger.error("Email provider not initialized")
+        return {"status": "failed", "error": "Email provider not initialized"}
+    
     try:
-        from_addr = from_email or settings.AWS_SES_SENDER_EMAIL
+        from_addr = from_email or settings.BREVO_FROM_EMAIL
+        from_name_str = from_name or settings.BREVO_FROM_NAME
         
-        if from_name:
-            from_addr = f"{from_name} <{from_addr}>"
-        
-        # Send email
-        response = ses_client.send_email(
-            Source=from_addr,
-            Destination={'ToAddresses': [to_email]},
-            Message={
-                'Subject': {'Data': subject, 'Charset': 'UTF-8'},
-                'Body': {'Html': {'Data': html_content, 'Charset': 'UTF-8'}}
-            },
-            ReplyToAddresses=reply_to or []
+        # Send email via Brevo
+        result = await email_provider.send_single_email(
+            to_email=to_email,
+            subject=subject,
+            html_content=html_content,
+            from_email=from_addr,
+            from_name=from_name_str,
+            reply_to=reply_to
         )
         
-        logger.info(f"Email sent to {to_email}, MessageId: {response['MessageId']}")
-        return {"status": "success", "MessageId": response['MessageId']}
+        if result["status"] == "sent":
+            logger.info(f"Email sent to {to_email}, MessageId: {result.get('message_id')}")
+            return {"status": "success", "MessageId": result.get('message_id')}
+        else:
+            logger.error(f"Failed to send email to {to_email}: {result.get('error')}")
+            return {"status": "failed", "error": result.get('error')}
     
     except Exception as e:
         logger.error(f"Failed to send email to {to_email}: {str(e)}")
@@ -61,9 +66,11 @@ async def send_campaign_emails(
 ):
     """
     Send campaign emails in parallel batches using Celery
+    Uses Brevo provider for email delivery
     """
     try:
         logger.info(f"Starting campaign send for {campaign_id} with {len(recipients)} recipients")
+        logger.info(f"Using email provider: {settings.EMAIL_PROVIDER}")
         
         # Split recipients into batches
         batch_size = settings.MAX_BATCH_SIZE
@@ -92,7 +99,7 @@ async def send_campaign_emails(
             "updated_at": datetime.now().isoformat()
         }).eq("id", campaign_id).execute()
         
-        logger.info(f"Campaign {campaign_id} queued for sending")
+        logger.info(f"Campaign {campaign_id} queued for sending via {settings.EMAIL_PROVIDER}")
         return {"status": "queued", "batches": len(batches), "total_recipients": len(recipients)}
     
     except Exception as e:
@@ -107,7 +114,7 @@ async def send_email_batch(
     campaign: Dict
 ):
     """
-    Send a batch of emails (called by Celery worker)
+    Send a batch of emails via Brevo (called by Celery worker)
     This runs in parallel for multiple batches
     """
     try:
@@ -128,12 +135,12 @@ async def send_email_batch(
                 html_content = template.get("html_content", "").replace("{first_name}", first_name or "")
                 html_content = html_content.replace("{email}", to_email or "")
                 
-                # Send email
+                # Send email via Brevo
                 result = await send_single_email(
                     to_email=to_email,
                     subject=subject,
                     html_content=html_content,
-                    from_email=campaign.get("from_email", settings.AWS_SES_SENDER_EMAIL),
+                    from_email=campaign.get("from_email", settings.BREVO_FROM_EMAIL),
                     from_name=campaign.get("from_name")
                 )
                 
@@ -153,7 +160,7 @@ async def send_email_batch(
                 logger.error(f"Error sending to recipient in batch {batch_index}: {str(e)}")
                 failed_count += 1
         
-        logger.info(f"Batch {batch_index} completed: {sent_count} sent, {failed_count} failed")
+        logger.info(f"Batch {batch_index} completed: {sent_count} sent, {failed_count} failed (via {settings.EMAIL_PROVIDER})")
         
         # Update campaign analytics
         await update_campaign_analytics(
