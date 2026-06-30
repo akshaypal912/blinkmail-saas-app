@@ -80,9 +80,13 @@ export default function CampaignsPage() {
         return
       }
 
-      alert(`Campaign queued! Sending ${data.total_recipients} emails in parallel.`)
+      const message = data.failed > 0 
+        ? `Campaign sent! ${data.sent} delivered, ${data.failed} failed (not verified in AWS SES). Request Production Access to send to all users.`
+        : `Campaign sent! ${data.sent} emails delivered successfully.`
       
-      // Refresh campaigns
+      alert(message)
+      
+      // Refresh campaigns immediately
       const { data: updated } = await supabase
         .from('campaigns')
         .select('*')
@@ -166,13 +170,20 @@ export default function CampaignsPage() {
                       {campaign.subject_line || '—'}
                     </td>
                     <td className="px-6 py-4 text-sm">
-                      <Badge
-                        variant={
-                          campaign.status === 'sent' ? 'default' : 'secondary'
-                        }
-                      >
-                        {campaign.status}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge
+                          variant={
+                            campaign.status === 'sent' ? 'default' : 'secondary'
+                          }
+                        >
+                          {campaign.status}
+                        </Badge>
+                        {campaign.status === 'sent' && (campaign as any).sent_count > 0 && (
+                          <span className="text-xs text-muted-foreground">
+                            {(campaign as any).sent_count} sent {(campaign as any).failed_count > 0 && `• ${(campaign as any).failed_count} failed`}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 text-sm text-muted-foreground">
                       {new Date(campaign.created_at).toLocaleDateString()}

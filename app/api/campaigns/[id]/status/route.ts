@@ -37,29 +37,13 @@ export async function GET(
       )
     }
 
-    // Get recipient statistics
-    const { data: recipients } = await supabase
-      .from('campaign_recipients')
-      .select('status')
-      .eq('campaign_id', campaignId)
-
-    const stats = {
-      pending: recipients?.filter((r: any) => r.status === 'pending').length || 0,
-      sent: recipients?.filter((r: any) => r.status === 'sent').length || 0,
-      delivered:
-        recipients?.filter((r: any) => r.status === 'delivered').length || 0,
-      bounced: recipients?.filter((r: any) => r.status === 'bounced').length || 0,
-      complained:
-        recipients?.filter((r: any) => r.status === 'complained').length || 0,
-      unsubscribed:
-        recipients?.filter((r: any) => r.status === 'unsubscribed').length || 0,
-    }
-
+    // Return campaign status with counts
     return NextResponse.json({
       campaign_id: campaignId,
       status: campaign.status,
-      statistics: stats,
-      total: recipients?.length || 0,
+      sent: campaign.sent_count || 0,
+      failed: campaign.failed_count || 0,
+      total_recipients: campaign.sent_count + campaign.failed_count || 0,
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'

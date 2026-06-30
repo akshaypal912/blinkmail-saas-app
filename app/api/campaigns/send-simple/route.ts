@@ -114,21 +114,27 @@ export async function POST(request: NextRequest) {
       const backendResult = await backendResponse.json()
       console.log('[v0] Backend response:', backendResult)
 
-      // Only update status if backend succeeded
+      // Update campaign status based on backend result
+      const campaignStatus = backendResult.failed > 0 && backendResult.sent === 0 ? 'failed' : 'sent'
+      
       await supabase
         .from('campaigns')
         .update({ 
-          status: 'sending',
-          updated_at: new Date().toISOString()
+          status: campaignStatus,
+          updated_at: new Date().toISOString(),
+          sent_count: backendResult.sent || 0,
+          failed_count: backendResult.failed || 0
         })
         .eq('id', campaign_id)
 
       return NextResponse.json({
-        status: 'sending',
+        status: campaignStatus,
         campaign_id,
         total_recipients: contacts.length,
+        sent: backendResult.sent,
+        failed: backendResult.failed,
         backend_response: backendResult,
-        message: `Campaign queued! Sending ${contacts.length} emails...`,
+        message: `Campaign sent! ${backendResult.sent} emails delivered, ${backendResult.failed} failed.`,
       })
 
     } catch (backendError) {
