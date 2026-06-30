@@ -109,12 +109,27 @@ export default function CampaignDetailPage({
         throw new Error(data.detail || 'Failed to send campaign')
       }
 
-      setSendStatus(`✓ Campaign queued! Sending ${data.total_recipients} emails in parallel batches`)
+      setSendStatus(`✓ Campaign sent! ${data.sent} emails delivered successfully`)
       
-      // Poll for status updates
-      pollCampaignStatus(campaign.id)
+      // Immediately update campaign status in local state
+      setCampaign(prev => prev ? { ...prev, status: data.status || 'sent' } : null)
       
-      setTimeout(() => setSending(false), 2000)
+      // Refetch campaign to get updated status from database
+      setTimeout(async () => {
+        try {
+          const { data: updatedCampaign } = await supabase
+            .from('campaigns')
+            .select('*')
+            .eq('id', campaign.id)
+            .single()
+          if (updatedCampaign) {
+            setCampaign(updatedCampaign)
+          }
+        } catch (error) {
+          console.error('Error refetching campaign:', error)
+        }
+        setSending(false)
+      }, 500)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error'
       setSendStatus(`✗ Error: ${message}`)
