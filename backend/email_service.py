@@ -1,12 +1,16 @@
 import logging
 from typing import List, Dict, Optional
 from datetime import datetime
+from dotenv import load_dotenv
 from config import settings
 from database import update_recipient_status, update_campaign_analytics, add_to_suppression_list
 from celery_app import send_email_batch_task
 from email_provider import get_email_provider
 import asyncio
 import re
+
+# Load environment variables from .env file
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 

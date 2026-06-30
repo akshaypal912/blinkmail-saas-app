@@ -12,7 +12,11 @@ from pydantic import BaseModel
 from typing import List, Dict, Optional
 from datetime import datetime
 import asyncio
+from dotenv import load_dotenv
 from email_provider import get_email_provider
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(
