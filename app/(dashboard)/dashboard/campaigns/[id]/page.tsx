@@ -64,13 +64,17 @@ export default function CampaignDetailPage({
     const resolveParamsAndSubscribe = async () => {
       const resolvedParams = await params
       const subscription = supabase
-        .from('campaigns')
-        .on('*', (payload) => {
-          if (payload.new && payload.new.id === resolvedParams.id) {
-            console.log('[v0] Campaign updated in real-time:', payload.new)
-            setCampaign(payload.new)
+        .channel(`campaign-${resolvedParams.id}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'campaigns', filter: `id=eq.${resolvedParams.id}` },
+          (payload) => {
+            console.log('[v0] Campaign updated:', payload)
+            if (payload.new) {
+              setCampaign(payload.new)
+            }
           }
-        })
+        )
         .subscribe()
 
       return () => {

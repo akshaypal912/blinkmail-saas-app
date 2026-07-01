@@ -42,25 +42,26 @@ export default function CampaignsPage() {
 
     fetchCampaigns()
 
-    // Subscribe to real-time updates
+    // Subscribe to real-time updates for campaign changes
     const subscription = supabase
-      .from('campaigns')
-      .on('*', (payload) => {
-        console.log('[v0] Campaign updated in real-time:', payload)
-        
-        if (payload.eventType === 'UPDATE') {
-          // Update existing campaign
-          setCampaigns(prev => 
-            prev.map(c => c.id === payload.new.id ? payload.new : c)
-          )
-        } else if (payload.eventType === 'INSERT') {
-          // Add new campaign
-          setCampaigns(prev => [payload.new, ...prev])
-        } else if (payload.eventType === 'DELETE') {
-          // Remove deleted campaign
-          setCampaigns(prev => prev.filter(c => c.id !== payload.old.id))
+      .channel('campaigns')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'campaigns' },
+        (payload) => {
+          console.log('[v0] Campaign updated:', payload)
+          
+          if (payload.eventType === 'UPDATE') {
+            setCampaigns(prev => 
+              prev.map(c => c.id === payload.new.id ? payload.new : c)
+            )
+          } else if (payload.eventType === 'INSERT') {
+            setCampaigns(prev => [payload.new, ...prev])
+          } else if (payload.eventType === 'DELETE') {
+            setCampaigns(prev => prev.filter(c => c.id !== payload.old.id))
+          }
         }
-      })
+      )
       .subscribe()
 
     return () => {
