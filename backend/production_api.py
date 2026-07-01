@@ -158,6 +158,8 @@ async def send_campaign(request: SendCampaignRequest):
     """
     logger.info(f"Received send request for campaign: {request.campaign_id}")
     logger.info(f"Recipients: {len(request.recipients)}, Sender: {request.from_email}")
+    logger.info(f"HTML Content length: {len(request.html_content)} chars")
+    logger.info(f"HTML Preview: {request.html_content[:200] if request.html_content else 'EMPTY'}")
     
     if not request.recipients:
         logger.error("No recipients provided")
