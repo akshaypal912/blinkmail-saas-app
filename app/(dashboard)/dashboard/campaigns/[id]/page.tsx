@@ -59,6 +59,26 @@ export default function CampaignDetailPage({
     }
 
     fetchCampaign()
+
+    // Subscribe to real-time updates for this campaign
+    const resolveParamsAndSubscribe = async () => {
+      const resolvedParams = await params
+      const subscription = supabase
+        .from('campaigns')
+        .on('*', (payload) => {
+          if (payload.new && payload.new.id === resolvedParams.id) {
+            console.log('[v0] Campaign updated in real-time:', payload.new)
+            setCampaign(payload.new)
+          }
+        })
+        .subscribe()
+
+      return () => {
+        subscription.unsubscribe()
+      }
+    }
+
+    resolveParamsAndSubscribe()
   }, [params, supabase])
 
   const handleSave = async () => {
@@ -90,7 +110,7 @@ export default function CampaignDetailPage({
     if (!campaign || !campaignId) return
 
     setSending(true)
-    setSendStatus('Initializing campaign send...')
+    setSendStatus('Sending campaign...')
 
     try {
       const response = await fetch('/api/campaigns/send-simple', {
@@ -109,29 +129,35 @@ export default function CampaignDetailPage({
         throw new Error(data.detail || 'Failed to send campaign')
       }
 
-      setSendStatus(`✓ Campaign sent! ${data.sent} emails delivered successfully`)
+      console.log('[v0] Send successful:', data)
       
-      // Immediately update campaign status in local state
-      const newStatus = data.status || 'sent'
-      setCampaign(prev => prev ? { ...prev, status: newStatus } : null)
+      setSendStatus(`✓ Campaign sent! ${data.sent} emails delivered`)
       
-      // Give time for database to update, then refetch
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      // Force immediate update of campaign status
+      setCampaign(prev => prev ? { ...prev, status: 'sent' } : null)
       
-      // Refetch campaign to get updated status from database
-      const { data: updatedCampaign } = await supabase
+      // Wait a moment for database update
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
+      // Refetch campaign from database to confirm status
+      const { data: updatedCampaign, error } = await supabase
         .from('campaigns')
         .select('*')
         .eq('id', campaignId)
         .single()
       
+      console.log('[v0] Refetched campaign:', updatedCampaign)
+      
       if (updatedCampaign) {
         setCampaign(updatedCampaign)
+      } else if (error) {
+        console.error('[v0] Refetch error:', error)
       }
       
       setSending(false)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error'
+      console.error('[v0] Send error:', message)
       setSendStatus(`✗ Error: ${message}`)
       setSending(false)
     }
