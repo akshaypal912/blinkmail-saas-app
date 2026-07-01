@@ -41,6 +41,31 @@ export default function CampaignsPage() {
     }
 
     fetchCampaigns()
+
+    // Subscribe to real-time updates
+    const subscription = supabase
+      .from('campaigns')
+      .on('*', (payload) => {
+        console.log('[v0] Campaign updated in real-time:', payload)
+        
+        if (payload.eventType === 'UPDATE') {
+          // Update existing campaign
+          setCampaigns(prev => 
+            prev.map(c => c.id === payload.new.id ? payload.new : c)
+          )
+        } else if (payload.eventType === 'INSERT') {
+          // Add new campaign
+          setCampaigns(prev => [payload.new, ...prev])
+        } else if (payload.eventType === 'DELETE') {
+          // Remove deleted campaign
+          setCampaigns(prev => prev.filter(c => c.id !== payload.old.id))
+        }
+      })
+      .subscribe()
+
+    return () => {
+      subscription.unsubscribe()
+    }
   }, [supabase])
 
   const filteredCampaigns = campaigns.filter(
@@ -86,12 +111,27 @@ export default function CampaignsPage() {
       
       alert(message)
       
+      // Wait a moment for database to process
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
       // Refresh campaigns immediately
       const { data: updated } = await supabase
         .from('campaigns')
         .select('*')
         .order('created_at', { ascending: false })
-      setCampaigns(updated || [])
+      
+      if (updated) {
+        setCampaigns(updated)
+        
+        // Also update local state immediately
+        setCampaigns(prev =>
+          prev.map(c => 
+            c.id === campaignId 
+              ? { ...c, status: 'sent' }
+              : c
+          )
+        )
+      }
     } catch (error) {
       alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
