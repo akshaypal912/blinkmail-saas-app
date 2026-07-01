@@ -172,6 +172,25 @@ export default function CampaignDetailPage({
       const updatedStatus = data.status || 'sent'
       console.log('[v0] Updating local status to:', updatedStatus)
       
+      // Update the campaign status in database directly from frontend
+      console.log('[v0] Updating campaign status in database...')
+      const { error: updateErr } = await supabase
+        .from('campaigns')
+        .update({
+          status: updatedStatus,
+          sent_count: data.sent || 0,
+          failed_count: data.failed || 0,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', campaignId)
+      
+      if (updateErr) {
+        console.error('[v0] Frontend database update error:', updateErr)
+      } else {
+        console.log('[v0] Frontend successfully updated campaign status in database')
+      }
+      
+      // Update local UI immediately
       setCampaign(prev => prev ? { 
         ...prev, 
         status: updatedStatus,
@@ -181,48 +200,6 @@ export default function CampaignDetailPage({
       } : null)
       
       setSending(false)
-      
-      // Poll for database confirmation
-      console.log('[v0] Starting status poll...')
-      let pollAttempts = 0
-      const pollInterval = setInterval(async () => {
-        pollAttempts++
-        
-        try {
-          const { data: freshCampaign } = await supabase
-            .from('campaigns')
-            .select('*')
-            .eq('id', campaignId)
-            .single()
-          
-          if (freshCampaign) {
-            console.log('[v0] Poll attempt', pollAttempts, '- Status:', freshCampaign.status)
-            
-            if (freshCampaign.status === 'sent') {
-              console.log('[v0] Status confirmed as sent!')
-              setCampaign(freshCampaign)
-              clearInterval(pollInterval)
-            }
-          }
-        } catch (err) {
-          console.error('[v0] Poll error:', err)
-        }
-        
-        // Stop polling after 10 attempts (10 seconds)
-        if (pollAttempts >= 10) {
-          console.log('[v0] Poll timeout - final status check')
-          const { data: finalCampaign } = await supabase
-            .from('campaigns')
-            .select('*')
-            .eq('id', campaignId)
-            .single()
-          
-          if (finalCampaign) {
-            setCampaign(finalCampaign)
-          }
-          clearInterval(pollInterval)
-        }
-      }, 1000) // Poll every 1 second
       
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error'

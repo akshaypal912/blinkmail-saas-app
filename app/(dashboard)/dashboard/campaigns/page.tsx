@@ -107,53 +107,39 @@ export default function CampaignsPage() {
       }
 
       const message = data.failed > 0 
-        ? `Campaign sent! ${data.sent} delivered, ${data.failed} failed (not verified in AWS SES). Request Production Access to send to all users.`
+        ? `Campaign sent! ${data.sent} delivered, ${data.failed} failed.`
         : `Campaign sent! ${data.sent} emails delivered successfully.`
       
       alert(message)
       
-      // Update local state immediately with 'sent' status
-      setCampaigns(prev =>
-        prev.map(c => 
-          c.id === campaignId 
-            ? { ...c, status: 'sent', sent_count: data.sent, failed_count: data.failed }
-            : c
-        )
-      )
+      // Update campaign status in database from frontend
+      console.log('[v0] Updating campaign status in database...')
+      const { error: updateErr } = await supabase
+        .from('campaigns')
+        .update({
+          status: 'sent',
+          sent_count: data.sent || 0,
+          failed_count: data.failed || 0,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', campaignId)
       
-      // Poll for database update confirmation
-      console.log('[v0] Starting status poll for campaigns list...')
-      let pollAttempts = 0
-      const pollInterval = setInterval(async () => {
-        pollAttempts++
-        
-        try {
-          const { data: updated } = await supabase
-            .from('campaigns')
-            .select('*')
-            .order('created_at', { ascending: false })
-          
-          if (updated) {
-            console.log('[v0] Poll attempt', pollAttempts, '- Campaigns refreshed')
-            setCampaigns(updated)
-            
-            // Stop polling if the campaign status is now 'sent'
-            const campaign = updated.find(c => c.id === campaignId)
-            if (campaign?.status === 'sent') {
-              console.log('[v0] Status confirmed as sent in database')
-              clearInterval(pollInterval)
-            }
-          }
-        } catch (err) {
-          console.error('[v0] Poll error:', err)
-        }
-        
-        // Stop polling after 10 attempts (10 seconds)
-        if (pollAttempts >= 10) {
-          console.log('[v0] Poll timeout')
-          clearInterval(pollInterval)
-        }
-      }, 1000) // Poll every 1 second
+      if (updateErr) {
+        console.error('[v0] Database update error:', updateErr)
+      } else {
+        console.log('[v0] Campaign status updated successfully')
+      }
+      
+      // Refresh campaigns list
+      const { data: updated } = await supabase
+        .from('campaigns')
+        .select('*')
+        .order('created_at', { ascending: false })
+      
+      if (updated) {
+        setCampaigns(updated)
+        console.log('[v0] Campaigns list refreshed')
+      }
     } catch (error) {
       alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {

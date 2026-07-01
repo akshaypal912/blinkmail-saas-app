@@ -39,6 +39,17 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Verify user owns this campaign
+    if (campaign.user_id !== user.id) {
+      console.error('[v0] Unauthorized - campaign belongs to different user')
+      return NextResponse.json(
+        { detail: 'Unauthorized - campaign does not belong to you' },
+        { status: 403 }
+      )
+    }
+    
+    console.log('[v0] Campaign ownership verified for user:', user.id)
+
     // Get all contacts for this user to send to
     const { data: contacts } = await supabase
       .from('contacts')
@@ -156,7 +167,7 @@ export async function POST(request: NextRequest) {
       
       console.log('[v0] Updating campaign status:', { campaign_id, status: campaignStatus })
       
-      const { error: updateError } = await supabase
+      const { data: updateData, error: updateError } = await supabase
         .from('campaigns')
         .update({ 
           status: campaignStatus,
@@ -168,8 +179,16 @@ export async function POST(request: NextRequest) {
 
       if (updateError) {
         console.error('[v0] Error updating campaign status:', updateError)
+        console.log('[v0] Update data:', updateData)
       } else {
         console.log('[v0] Campaign status updated successfully')
+        // Verify the update actually happened
+        const { data: verifyData } = await supabase
+          .from('campaigns')
+          .select('status, updated_at')
+          .eq('id', campaign_id)
+          .single()
+        console.log('[v0] Verified status in database:', verifyData)
       }
 
       return NextResponse.json({
