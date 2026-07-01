@@ -46,7 +46,7 @@ export async function PUT(
       failed_count: body.failed_count
     })
 
-    const { error: updateError, data: updateData } = await supabase
+    const { error: updateError } = await supabase
       .from('campaigns')
       .update({
         status: body.status || 'sent',
@@ -56,8 +56,6 @@ export async function PUT(
       })
       .eq('id', campaignId)
 
-    console.log('[v0] Update result:', { updateError: updateError?.message, updateData })
-
     if (updateError) {
       console.error('[v0] Update failed:', updateError)
       return NextResponse.json(
@@ -66,7 +64,19 @@ export async function PUT(
       )
     }
 
-    console.log('[v0] Campaign status updated successfully')
+    // Verify the update was successful by fetching the campaign
+    const { data: verifyData, error: verifyError } = await supabase
+      .from('campaigns')
+      .select('status, sent_count, failed_count')
+      .eq('id', campaignId)
+      .single()
+
+    console.log('[v0] Campaign status verified:', { 
+      status: verifyData?.status, 
+      sent_count: verifyData?.sent_count,
+      failed_count: verifyData?.failed_count,
+      verifyError: verifyError?.message
+    })
 
     return NextResponse.json({
       success: true,
