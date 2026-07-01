@@ -69,15 +69,62 @@ export async function PUT(
 ) {
   try {
     const campaignId = params.id
+    console.log('[v0] PUT /api/campaigns/[id]/status called with campaignId:', campaignId)
+    
     const body = await request.json()
-
+    console.log('[v0] Request body:', body)
+    
     const result = await authenticateAndVerifyOwnership(campaignId)
+    console.log('[v0] Auth result:', { error: result.error, status: result.status, campaign_found: !!result.campaign })
+    
     if (result.error) {
+      console.error('[v0] Auth error:', result.error)
       return NextResponse.json(
         { detail: result.error },
         { status: result.status }
       )
     }
+
+    const supabase = await createClient()
+
+    // Update campaign status
+    console.log('[v0] Updating campaign', campaignId, 'to status:', body.status)
+    const { error: updateError, data: updateData } = await supabase
+      .from('campaigns')
+      .update({
+        status: body.status || 'sent',
+        sent_count: body.sent_count,
+        failed_count: body.failed_count,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', campaignId)
+      .select()
+
+    if (updateError) {
+      console.error('[v0] Update error:', updateError)
+      return NextResponse.json(
+        { detail: updateError.message },
+        { status: 500 }
+      )
+    }
+
+    console.log('[v0] Campaign status updated successfully')
+
+    return NextResponse.json({
+      success: true,
+      campaign_id: campaignId,
+      status: body.status || 'sent',
+      message: 'Campaign status updated successfully'
+    })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    console.error('[v0] Error updating status:', message)
+    return NextResponse.json(
+      { detail: message },
+      { status: 500 }
+    )
+  }
+}
 
     const supabase = await createClient()
 

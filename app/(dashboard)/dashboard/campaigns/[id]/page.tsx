@@ -180,7 +180,11 @@ export default function CampaignDetailPage({
       
       // Call the status API to update campaign
       try {
-        const statusRes = await fetch(`/api/campaigns/${campaignId}/status`, {
+        console.log('[v0] About to call status API with campaignId:', campaignId)
+        const url = `/api/campaigns/${campaignId}/status`
+        console.log('[v0] Status API URL:', url)
+        
+        const statusRes = await fetch(url, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -189,6 +193,8 @@ export default function CampaignDetailPage({
             failed_count: data.failed || 0
           })
         })
+        
+        console.log('[v0] Status API response status:', statusRes.status)
         
         const statusData = await statusRes.json()
         console.log('[v0] Status API response:', statusData)
