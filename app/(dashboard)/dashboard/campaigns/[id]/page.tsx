@@ -206,13 +206,27 @@ export default function CampaignDetailPage({
         console.error('[v0] Status update error:', err)
       }
       
-      // Update local UI
+      // Update local UI immediately
       setCampaign(prev => prev ? { 
         ...prev, 
         status: 'sent',
         sent_count: data.sent || 0,
         failed_count: data.failed || 0
       } : null)
+      
+      // Refresh from database after a short delay to ensure update is persisted
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
+      const { data: freshCampaign } = await supabase
+        .from('campaigns')
+        .select('*')
+        .eq('id', campaignId)
+        .single()
+      
+      if (freshCampaign) {
+        console.log('[v0] Refreshed campaign from DB:', freshCampaign.status)
+        setCampaign(freshCampaign)
+      }
       
       setSending(false)
       

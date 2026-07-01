@@ -39,7 +39,14 @@ export async function PUT(
     }
 
     // Update campaign status
-    const { error: updateError } = await supabase
+    console.log('[v0] Updating campaign status:', {
+      campaignId,
+      status: body.status || 'sent',
+      sent_count: body.sent_count,
+      failed_count: body.failed_count
+    })
+
+    const { error: updateError, data: updateData } = await supabase
       .from('campaigns')
       .update({
         status: body.status || 'sent',
@@ -49,12 +56,17 @@ export async function PUT(
       })
       .eq('id', campaignId)
 
+    console.log('[v0] Update result:', { updateError: updateError?.message, updateData })
+
     if (updateError) {
+      console.error('[v0] Update failed:', updateError)
       return NextResponse.json(
         { detail: updateError.message },
         { status: 500 }
       )
     }
+
+    console.log('[v0] Campaign status updated successfully')
 
     return NextResponse.json({
       success: true,
