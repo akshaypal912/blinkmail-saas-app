@@ -168,33 +168,28 @@ export default function CampaignDetailPage({
       
       setSendStatus(`✓ Campaign sent! ${data.sent} emails delivered`)
       
-      // Immediately update campaign status locally
+      // Update the campaign status via the dedicated status API
       const updatedStatus = data.status || 'sent'
-      console.log('[v0] Updating local status to:', updatedStatus)
+      console.log('[v0] Updating campaign status via API...')
       
-      // Update the campaign status in database directly from frontend
-      console.log('[v0] Updating campaign status in database...')
-      const { error: updateErr } = await supabase
-        .from('campaigns')
-        .update({
+      const statusResponse = await fetch(`/api/campaigns/${campaignId}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           status: updatedStatus,
           sent_count: data.sent || 0,
-          failed_count: data.failed || 0,
-          updated_at: new Date().toISOString()
+          failed_count: data.failed || 0
         })
-        .eq('id', campaignId)
+      })
       
-      if (updateErr) {
-        console.error('[v0] Frontend database update error:', updateErr)
+      const statusData = await statusResponse.json()
+      
+      if (!statusResponse.ok) {
+        console.error('[v0] Status update API error:', statusData)
       } else {
-        console.log('[v0] Frontend successfully updated campaign status in database')
-        // Verify the status was actually updated
-        const { data: verifyData } = await supabase
-          .from('campaigns')
-          .select('status')
-          .eq('id', campaignId)
-          .single()
-        console.log('[v0] Verified status in database:', verifyData?.status)
+        console.log('[v0] Campaign status updated successfully via API')
       }
       
       // Update local UI immediately

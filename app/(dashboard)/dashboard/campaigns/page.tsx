@@ -112,22 +112,25 @@ export default function CampaignsPage() {
       
       alert(message)
       
-      // Update campaign status in database from frontend
-      console.log('[v0] Updating campaign status in database...')
-      const { error: updateErr } = await supabase
-        .from('campaigns')
-        .update({
+      // Update campaign status via API
+      console.log('[v0] Updating campaign status via API...')
+      const statusResponse = await fetch(`/api/campaigns/${campaignId}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           status: 'sent',
           sent_count: data.sent || 0,
-          failed_count: data.failed || 0,
-          updated_at: new Date().toISOString()
+          failed_count: data.failed || 0
         })
-        .eq('id', campaignId)
+      })
       
-      if (updateErr) {
-        console.error('[v0] Database update error:', updateErr)
+      const statusData = await statusResponse.json()
+      if (!statusResponse.ok) {
+        console.error('[v0] Status update error:', statusData)
       } else {
-        console.log('[v0] Campaign status updated successfully')
+        console.log('[v0] Campaign status updated successfully via API')
       }
       
       // Refresh campaigns list
