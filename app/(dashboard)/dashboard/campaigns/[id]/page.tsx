@@ -180,27 +180,50 @@ export default function CampaignDetailPage({
         updated_at: new Date().toISOString()
       } : null)
       
-      // Wait for database update
-      await new Promise(resolve => setTimeout(resolve, 1500))
-      
-      // Refetch campaign from database to confirm status was saved
-      console.log('[v0] Refetching campaign from database...')
-      const { data: updatedCampaign, error } = await supabase
-        .from('campaigns')
-        .select('*')
-        .eq('id', campaignId)
-        .single()
-      
-      console.log('[v0] Refetched campaign:', { status: updatedCampaign?.status, error })
-      
-      if (updatedCampaign) {
-        console.log('[v0] Setting campaign to:', updatedCampaign)
-        setCampaign(updatedCampaign)
-      } else if (error) {
-        console.error('[v0] Refetch error:', error)
-      }
-      
       setSending(false)
+      
+      // Poll for database confirmation
+      console.log('[v0] Starting status poll...')
+      let pollAttempts = 0
+      const pollInterval = setInterval(async () => {
+        pollAttempts++
+        
+        try {
+          const { data: freshCampaign } = await supabase
+            .from('campaigns')
+            .select('*')
+            .eq('id', campaignId)
+            .single()
+          
+          if (freshCampaign) {
+            console.log('[v0] Poll attempt', pollAttempts, '- Status:', freshCampaign.status)
+            
+            if (freshCampaign.status === 'sent') {
+              console.log('[v0] Status confirmed as sent!')
+              setCampaign(freshCampaign)
+              clearInterval(pollInterval)
+            }
+          }
+        } catch (err) {
+          console.error('[v0] Poll error:', err)
+        }
+        
+        // Stop polling after 10 attempts (10 seconds)
+        if (pollAttempts >= 10) {
+          console.log('[v0] Poll timeout - final status check')
+          const { data: finalCampaign } = await supabase
+            .from('campaigns')
+            .select('*')
+            .eq('id', campaignId)
+            .single()
+          
+          if (finalCampaign) {
+            setCampaign(finalCampaign)
+          }
+          clearInterval(pollInterval)
+        }
+      }, 1000) // Poll every 1 second
+      
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error'
       console.error('[v0] Send error:', message)

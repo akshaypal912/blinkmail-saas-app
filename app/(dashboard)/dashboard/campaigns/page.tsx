@@ -112,27 +112,48 @@ export default function CampaignsPage() {
       
       alert(message)
       
-      // Wait a moment for database to process
-      await new Promise(resolve => setTimeout(resolve, 500))
-      
-      // Refresh campaigns immediately
-      const { data: updated } = await supabase
-        .from('campaigns')
-        .select('*')
-        .order('created_at', { ascending: false })
-      
-      if (updated) {
-        setCampaigns(updated)
-        
-        // Also update local state immediately
-        setCampaigns(prev =>
-          prev.map(c => 
-            c.id === campaignId 
-              ? { ...c, status: 'sent' }
-              : c
-          )
+      // Update local state immediately with 'sent' status
+      setCampaigns(prev =>
+        prev.map(c => 
+          c.id === campaignId 
+            ? { ...c, status: 'sent', sent_count: data.sent, failed_count: data.failed }
+            : c
         )
-      }
+      )
+      
+      // Poll for database update confirmation
+      console.log('[v0] Starting status poll for campaigns list...')
+      let pollAttempts = 0
+      const pollInterval = setInterval(async () => {
+        pollAttempts++
+        
+        try {
+          const { data: updated } = await supabase
+            .from('campaigns')
+            .select('*')
+            .order('created_at', { ascending: false })
+          
+          if (updated) {
+            console.log('[v0] Poll attempt', pollAttempts, '- Campaigns refreshed')
+            setCampaigns(updated)
+            
+            // Stop polling if the campaign status is now 'sent'
+            const campaign = updated.find(c => c.id === campaignId)
+            if (campaign?.status === 'sent') {
+              console.log('[v0] Status confirmed as sent in database')
+              clearInterval(pollInterval)
+            }
+          }
+        } catch (err) {
+          console.error('[v0] Poll error:', err)
+        }
+        
+        // Stop polling after 10 attempts (10 seconds)
+        if (pollAttempts >= 10) {
+          console.log('[v0] Poll timeout')
+          clearInterval(pollInterval)
+        }
+      }, 1000) // Poll every 1 second
     } catch (error) {
       alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
