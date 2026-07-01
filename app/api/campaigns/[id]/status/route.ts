@@ -69,16 +69,11 @@ export async function PUT(
 ) {
   try {
     const campaignId = params.id
-    console.log('[v0] PUT /api/campaigns/[id]/status called with campaignId:', campaignId)
-    
     const body = await request.json()
-    console.log('[v0] Request body:', body)
     
     const result = await authenticateAndVerifyOwnership(campaignId)
-    console.log('[v0] Auth result:', { error: result.error, status: result.status, campaign_found: !!result.campaign })
     
     if (result.error) {
-      console.error('[v0] Auth error:', result.error)
       return NextResponse.json(
         { detail: result.error },
         { status: result.status }
@@ -88,8 +83,7 @@ export async function PUT(
     const supabase = await createClient()
 
     // Update campaign status
-    console.log('[v0] Updating campaign', campaignId, 'to status:', body.status)
-    const { error: updateError, data: updateData } = await supabase
+    const { error: updateError } = await supabase
       .from('campaigns')
       .update({
         status: body.status || 'sent',
@@ -107,8 +101,6 @@ export async function PUT(
         { status: 500 }
       )
     }
-
-    console.log('[v0] Campaign status updated successfully')
 
     return NextResponse.json({
       success: true,
