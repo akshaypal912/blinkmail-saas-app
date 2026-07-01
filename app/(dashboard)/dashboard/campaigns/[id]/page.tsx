@@ -165,40 +165,31 @@ export default function CampaignDetailPage({
       }
 
       console.log('[v0] Send API response:', data)
-      
       setSendStatus(`✓ Campaign sent! ${data.sent} emails delivered`)
       
-      // Update the campaign status via the dedicated status API
-      const updatedStatus = data.status || 'sent'
-      console.log('[v0] Updating campaign status via API...')
-      
-      const statusResponse = await fetch(`/api/campaigns/${campaignId}/status`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          status: updatedStatus,
+      // Update status directly in Supabase
+      const { error: updateError } = await supabase
+        .from('campaigns')
+        .update({
+          status: 'sent',
           sent_count: data.sent || 0,
-          failed_count: data.failed || 0
+          failed_count: data.failed || 0,
+          updated_at: new Date().toISOString()
         })
-      })
+        .eq('id', campaignId)
       
-      const statusData = await statusResponse.json()
-      
-      if (!statusResponse.ok) {
-        console.error('[v0] Status update API error:', statusData)
+      if (updateError) {
+        console.error('[v0] Status update error:', updateError)
       } else {
-        console.log('[v0] Campaign status updated successfully via API')
+        console.log('[v0] Status updated successfully')
       }
       
-      // Update local UI immediately
+      // Update local UI
       setCampaign(prev => prev ? { 
         ...prev, 
-        status: updatedStatus,
+        status: 'sent',
         sent_count: data.sent || 0,
-        failed_count: data.failed || 0,
-        updated_at: new Date().toISOString()
+        failed_count: data.failed || 0
       } : null)
       
       setSending(false)
