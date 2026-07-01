@@ -103,23 +103,37 @@ export default function CampaignDetailPage({
     if (!campaign) return
 
     setSaving(true)
+    console.log('[v0] Saving template:', { 
+      campaign_id: campaign.id, 
+      html_content_length: htmlContent.length,
+      html_preview: htmlContent.substring(0, 100)
+    })
+    
     try {
-      await supabase
+      const { data, error } = await supabase
         .from('email_templates')
         .upsert({
           campaign_id: campaign.id,
-          user_id: campaign.id,
+          user_id: campaign.user_id || campaign.id,
           name: `${campaign.name} - Template`,
           html_content: htmlContent,
           subject_line: campaign.subject_line,
         })
+
+      if (error) {
+        console.error('[v0] Template save error:', error)
+        alert('Error saving template: ' + error.message)
+      } else {
+        console.log('[v0] Template saved successfully')
+        alert('Template saved successfully!')
+      }
 
       // Show success feedback
       setTimeout(() => {
         setSaving(false)
       }, 500)
     } catch (error) {
-      console.error('Error saving template:', error)
+      console.error('[v0] Error saving template:', error)
       setSaving(false)
     }
   }
@@ -131,6 +145,8 @@ export default function CampaignDetailPage({
     setSendStatus('Sending campaign...')
 
     try {
+      console.log('[v0] Sending campaign with ID:', campaign.id)
+      
       const response = await fetch('/api/campaigns/send-simple', {
         method: 'POST',
         headers: {
@@ -144,15 +160,18 @@ export default function CampaignDetailPage({
       const data = await response.json()
 
       if (!response.ok) {
+        console.error('[v0] API error response:', data)
         throw new Error(data.detail || 'Failed to send campaign')
       }
 
-      console.log('[v0] Send successful:', data)
+      console.log('[v0] Send API response:', data)
       
       setSendStatus(`✓ Campaign sent! ${data.sent} emails delivered`)
       
       // Immediately update campaign status locally
       const updatedStatus = data.status || 'sent'
+      console.log('[v0] Updating local status to:', updatedStatus)
+      
       setCampaign(prev => prev ? { 
         ...prev, 
         status: updatedStatus,
@@ -161,23 +180,24 @@ export default function CampaignDetailPage({
         updated_at: new Date().toISOString()
       } : null)
       
-      // Wait a moment for database update
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      // Wait for database update
+      await new Promise(resolve => setTimeout(resolve, 1500))
       
       // Refetch campaign from database to confirm status was saved
+      console.log('[v0] Refetching campaign from database...')
       const { data: updatedCampaign, error } = await supabase
         .from('campaigns')
         .select('*')
         .eq('id', campaignId)
         .single()
       
-      console.log('[v0] Refetched campaign status:', updatedCampaign?.status)
+      console.log('[v0] Refetched campaign:', { status: updatedCampaign?.status, error })
       
       if (updatedCampaign) {
+        console.log('[v0] Setting campaign to:', updatedCampaign)
         setCampaign(updatedCampaign)
       } else if (error) {
         console.error('[v0] Refetch error:', error)
-        // Even if refetch fails, keep the local status update
       }
       
       setSending(false)

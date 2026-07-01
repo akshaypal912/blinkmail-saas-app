@@ -53,11 +53,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Get email template for this campaign
-    const { data: template } = await supabase
+    const { data: template, error: templateError } = await supabase
       .from('email_templates')
       .select('*')
       .eq('campaign_id', campaign_id)
       .single()
+
+    console.log('[v0] Template fetch result:', { 
+      found: !!template,
+      error: templateError,
+      template_id: template?.id,
+      html_length: template?.html_content?.length || 0
+    })
 
     // Validate from_email is set (must be set on campaign)
     if (!campaign.from_email) {
@@ -83,6 +90,13 @@ export async function POST(request: NextRequest) {
         last_name: c.last_name || ''
       }))
     }
+
+    console.log('[v0] Email data to send:', {
+      campaign_id,
+      recipients: emailData.recipients.length,
+      has_html_content: (emailData.html_content?.length || 0) > 20,
+      html_preview: (emailData.html_content || '').substring(0, 100)
+    })
 
     // Call backend API with retry logic
     const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
@@ -140,7 +154,9 @@ export async function POST(request: NextRequest) {
       // Update campaign status based on backend result
       const campaignStatus = backendResult.failed > 0 && backendResult.sent === 0 ? 'failed' : 'sent'
       
-      await supabase
+      console.log('[v0] Updating campaign status:', { campaign_id, status: campaignStatus })
+      
+      const { error: updateError } = await supabase
         .from('campaigns')
         .update({ 
           status: campaignStatus,
@@ -149,6 +165,12 @@ export async function POST(request: NextRequest) {
           failed_count: backendResult.failed || 0
         })
         .eq('id', campaign_id)
+
+      if (updateError) {
+        console.error('[v0] Error updating campaign status:', updateError)
+      } else {
+        console.log('[v0] Campaign status updated successfully')
+      }
 
       return NextResponse.json({
         status: campaignStatus,
