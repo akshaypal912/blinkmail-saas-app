@@ -48,6 +48,20 @@ export default function CampaignDetailPage({
 
         if (data) {
           setCampaign(data)
+          
+          // Fetch the template for this campaign
+          const { data: templateData } = await supabase
+            .from('email_templates')
+            .select('html_content, subject_line')
+            .eq('campaign_id', resolvedParams.id)
+            .single()
+          
+          if (templateData && templateData.html_content) {
+            console.log('[v0] Loaded template content:', templateData.html_content.length, 'chars')
+            setHtmlContent(templateData.html_content)
+          } else {
+            console.log('[v0] No template found, starting with empty content')
+          }
         } else {
           console.error('Campaign not found')
         }
@@ -137,25 +151,33 @@ export default function CampaignDetailPage({
       
       setSendStatus(`✓ Campaign sent! ${data.sent} emails delivered`)
       
-      // Force immediate update of campaign status
-      setCampaign(prev => prev ? { ...prev, status: 'sent' } : null)
+      // Immediately update campaign status locally
+      const updatedStatus = data.status || 'sent'
+      setCampaign(prev => prev ? { 
+        ...prev, 
+        status: updatedStatus,
+        sent_count: data.sent || 0,
+        failed_count: data.failed || 0,
+        updated_at: new Date().toISOString()
+      } : null)
       
       // Wait a moment for database update
-      await new Promise(resolve => setTimeout(resolve, 500))
+      await new Promise(resolve => setTimeout(resolve, 1000))
       
-      // Refetch campaign from database to confirm status
+      // Refetch campaign from database to confirm status was saved
       const { data: updatedCampaign, error } = await supabase
         .from('campaigns')
         .select('*')
         .eq('id', campaignId)
         .single()
       
-      console.log('[v0] Refetched campaign:', updatedCampaign)
+      console.log('[v0] Refetched campaign status:', updatedCampaign?.status)
       
       if (updatedCampaign) {
         setCampaign(updatedCampaign)
       } else if (error) {
         console.error('[v0] Refetch error:', error)
+        // Even if refetch fails, keep the local status update
       }
       
       setSending(false)
