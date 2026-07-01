@@ -188,6 +188,13 @@ export default function CampaignDetailPage({
         console.error('[v0] Frontend database update error:', updateErr)
       } else {
         console.log('[v0] Frontend successfully updated campaign status in database')
+        // Verify the status was actually updated
+        const { data: verifyData } = await supabase
+          .from('campaigns')
+          .select('status')
+          .eq('id', campaignId)
+          .single()
+        console.log('[v0] Verified status in database:', verifyData?.status)
       }
       
       // Update local UI immediately

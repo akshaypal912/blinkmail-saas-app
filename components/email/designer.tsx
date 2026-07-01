@@ -124,10 +124,11 @@ interface EmailTemplateDesignerProps {
 }
 
 export function EmailTemplateDesigner({ value, onChange }: EmailTemplateDesignerProps) {
-  const [template, setTemplate] = useState(value || emailTemplates[0].html)
+  const [template, setTemplate] = useState(value || '')
   const [preview, setPreview] = useState(true)
 
   const applyTemplate = (html: string) => {
+    console.log('[v0] Applying template, length:', html.length)
     setTemplate(html)
     onChange(html)
   }
@@ -168,8 +169,10 @@ export function EmailTemplateDesigner({ value, onChange }: EmailTemplateDesigner
           <textarea
             value={template}
             onChange={(e) => {
-              setTemplate(e.target.value)
-              onChange(e.target.value)
+              const newValue = e.target.value
+              console.log('[v0] Editor changed, new length:', newValue.length)
+              setTemplate(newValue)
+              onChange(newValue)
             }}
             className="w-full h-96 p-4 border border-border rounded-lg font-mono text-sm bg-secondary/50 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
             placeholder="Paste your HTML or edit here..."
