@@ -178,44 +178,16 @@ export default function CampaignDetailPage({
       console.log('[v0] Send API response:', data)
       setSendStatus(`✓ Campaign sent! ${data.sent} emails delivered`)
       
-      // Call the status API to update campaign
-      try {
-        console.log('[v0] About to call status API with campaignId:', campaignId)
-        const url = `/api/campaigns/${campaignId}/status`
-        console.log('[v0] Status API URL:', url)
-        
-        const statusRes = await fetch(url, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            status: 'sent',
-            sent_count: data.sent || 0,
-            failed_count: data.failed || 0
-          })
-        })
-        
-        console.log('[v0] Status API response status:', statusRes.status)
-        
-        const statusData = await statusRes.json()
-        console.log('[v0] Status API response:', statusData)
-        
-        if (!statusRes.ok) {
-          console.error('[v0] Status update failed:', statusData)
-        }
-      } catch (err) {
-        console.error('[v0] Status update error:', err)
-      }
-      
       // Update local UI immediately
       setCampaign(prev => prev ? { 
         ...prev, 
-        status: 'sent',
+        status: data.status || 'sent',
         sent_count: data.sent || 0,
         failed_count: data.failed || 0
       } : null)
       
-      // Refresh from database after a short delay to ensure update is persisted
-      await new Promise(resolve => setTimeout(resolve, 500))
+      // Refresh from database to get the actual updated status
+      await new Promise(resolve => setTimeout(resolve, 1000))
       
       const { data: freshCampaign } = await supabase
         .from('campaigns')
@@ -224,7 +196,7 @@ export default function CampaignDetailPage({
         .single()
       
       if (freshCampaign) {
-        console.log('[v0] Refreshed campaign from DB:', freshCampaign.status)
+        console.log('[v0] Campaign refreshed from DB - Status:', freshCampaign.status)
         setCampaign(freshCampaign)
       }
       

@@ -112,27 +112,8 @@ export default function CampaignsPage() {
       
       alert(message)
       
-      // Call the status API to update campaign
-      try {
-        const statusRes = await fetch(`/api/campaigns/${campaignId}/status`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            status: 'sent',
-            sent_count: data.sent || 0,
-            failed_count: data.failed || 0
-          })
-        })
-        
-        if (!statusRes.ok) {
-          const err = await statusRes.json()
-          console.error('[v0] Status update failed:', err)
-        }
-      } catch (err) {
-        console.error('[v0] Status update error:', err)
-      }
-      
-      // Refresh list
+      // Refresh list to show updated status
+      await new Promise(resolve => setTimeout(resolve, 500))
       const { data: updated } = await supabase
         .from('campaigns')
         .select('*')
