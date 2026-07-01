@@ -167,21 +167,26 @@ export default function CampaignDetailPage({
       console.log('[v0] Send API response:', data)
       setSendStatus(`✓ Campaign sent! ${data.sent} emails delivered`)
       
-      // Update status directly in Supabase
-      const { error: updateError } = await supabase
-        .from('campaigns')
-        .update({
-          status: 'sent',
-          sent_count: data.sent || 0,
-          failed_count: data.failed || 0,
-          updated_at: new Date().toISOString()
+      // Call the status API to update campaign
+      try {
+        const statusRes = await fetch(`/api/campaigns/${campaignId}/status`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            status: 'sent',
+            sent_count: data.sent || 0,
+            failed_count: data.failed || 0
+          })
         })
-        .eq('id', campaignId)
-      
-      if (updateError) {
-        console.error('[v0] Status update error:', updateError)
-      } else {
-        console.log('[v0] Status updated successfully')
+        
+        const statusData = await statusRes.json()
+        console.log('[v0] Status API response:', statusData)
+        
+        if (!statusRes.ok) {
+          console.error('[v0] Status update failed:', statusData)
+        }
+      } catch (err) {
+        console.error('[v0] Status update error:', err)
       }
       
       // Update local UI
