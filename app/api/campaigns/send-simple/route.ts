@@ -64,18 +64,22 @@ export async function POST(request: NextRequest) {
     }
 
     // Get email template for this campaign
+    console.log('[v0] Querying email_templates for campaign_id:', campaign_id)
+    
     const { data: template, error: templateError } = await supabase
       .from('email_templates')
       .select('*')
       .eq('campaign_id', campaign_id)
       .single()
 
-    console.log('[v0] Template fetch result:', { 
-      found: !!template,
-      error: templateError,
-      template_id: template?.id,
-      html_length: template?.html_content?.length || 0
-    })
+    console.log('[v0] ===== TEMPLATE FETCH RESULT =====')
+    console.log('[v0] Template found?', !!template)
+    console.log('[v0] Template error?', templateError ? templateError.message : 'none')
+    console.log('[v0] Template data:', template)
+    if (template) {
+      console.log('[v0] Template html_content length:', template.html_content?.length || 0)
+      console.log('[v0] Template html_content first 200 chars:', (template.html_content || '').substring(0, 200))
+    }
 
     // Validate from_email is set (must be set on campaign)
     if (!campaign.from_email) {

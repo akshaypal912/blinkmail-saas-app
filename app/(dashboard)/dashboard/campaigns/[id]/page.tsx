@@ -103,28 +103,33 @@ export default function CampaignDetailPage({
     if (!campaign) return
 
     setSaving(true)
-    console.log('[v0] Saving template:', { 
-      campaign_id: campaign.id, 
-      html_content_length: htmlContent.length,
-      html_preview: htmlContent.substring(0, 100)
-    })
+    console.log('[v0] ===== SAVE HANDLER START =====')
+    console.log('[v0] htmlContent.length:', htmlContent.length)
+    console.log('[v0] htmlContent IS EMPTY?:', htmlContent === '')
+    console.log('[v0] htmlContent first 300 chars:', htmlContent.substring(0, 300))
+    console.log('[v0] campaign.id:', campaign.id)
     
     try {
+      const saveData = {
+        campaign_id: campaign.id,
+        user_id: campaign.user_id || campaign.id,
+        name: `${campaign.name} - Template`,
+        html_content: htmlContent,
+        subject_line: campaign.subject_line,
+      }
+      
+      console.log('[v0] Saving to DB:', saveData)
+      
       const { data, error } = await supabase
         .from('email_templates')
-        .upsert({
-          campaign_id: campaign.id,
-          user_id: campaign.user_id || campaign.id,
-          name: `${campaign.name} - Template`,
-          html_content: htmlContent,
-          subject_line: campaign.subject_line,
-        })
+        .upsert(saveData)
 
       if (error) {
-        console.error('[v0] Template save error:', error)
+        console.error('[v0] Template save ERROR:', error)
         alert('Error saving template: ' + error.message)
       } else {
-        console.log('[v0] Template saved successfully')
+        console.log('[v0] Template save SUCCESS - Upsert completed')
+        console.log('[v0] Upsert response data:', data)
         alert('Template saved successfully!')
       }
 
@@ -145,7 +150,11 @@ export default function CampaignDetailPage({
     setSendStatus('Sending campaign...')
 
     try {
-      console.log('[v0] Sending campaign with ID:', campaign.id)
+      console.log('[v0] ===== SEND HANDLER START =====')
+      console.log('[v0] campaignId:', campaignId)
+      console.log('[v0] campaign.id:', campaign.id)
+      console.log('[v0] Current htmlContent state length:', htmlContent.length)
+      console.log('[v0] Current htmlContent:', htmlContent.substring(0, 200))
       
       const response = await fetch('/api/campaigns/send-simple', {
         method: 'POST',
@@ -156,6 +165,8 @@ export default function CampaignDetailPage({
           campaign_id: campaign.id,
         }),
       })
+      
+      console.log('[v0] API call made to send-simple')
 
       const data = await response.json()
 
